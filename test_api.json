@@ -1,0 +1,90 @@
+{
+  "info": {
+    "name": "RabbitMQ Spring Boot Demo",
+    "_postman_id": "f6c2c8d3-3f8d-4e5f-b4cb-8d32b1c8f123",
+    "description": "Test RabbitMQ exchanges (Direct, Fanout, Topic, Headers) with Spring Boot API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Direct Exchange",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"exchangeType\": \"direct\",\n  \"routingKey\": \"direct-key\",\n  \"message\": \"Hello Direct!\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:8080/send",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8080",
+          "path": ["send"]
+        }
+      }
+    },
+    {
+      "name": "Fanout Exchange",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"exchangeType\": \"fanout\",\n  \"message\": \"Hello Fanout!\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:8080/send",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8080",
+          "path": ["send"]
+        }
+      }
+    },
+    {
+      "name": "Topic Exchange",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"exchangeType\": \"topic\",\n  \"routingKey\": \"topic.test\",\n  \"message\": \"Hello Topic!\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:8080/send",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8080",
+          "path": ["send"]
+        }
+      }
+    },
+    {
+      "name": "Headers Exchange",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"exchangeType\": \"headers\",\n  \"message\": \"Hello Headers!\",\n  \"headers\": {\n    \"format\": \"pdf\",\n    \"type\": \"report\"\n  }\n}"
+        },
+        "url": {
+          "raw": "http://localhost:8080/send",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8080",
+          "path": ["send"]
+        }
+      }
+    }
+  ]
+}
