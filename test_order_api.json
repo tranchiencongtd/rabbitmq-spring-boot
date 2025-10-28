@@ -1,0 +1,111 @@
+{
+  "info": {
+    "name": "RabbitMQ Order Cancellation API",
+    "description": "API để test tự động hủy đơn hàng chưa thanh toán",
+    "version": "1.0.0"
+  },
+  "requests": {
+    "1. Tạo đơn hàng mới": {
+      "method": "POST",
+      "url": "http://localhost:8080/api/orders/create",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "userId": "user123",
+        "amount": 500000
+      },
+      "description": "Tạo đơn hàng mới. Đơn hàng sẽ tự động hủy sau 15 phút nếu không thanh toán."
+    },
+    "2. Tạo nhiều đơn hàng": {
+      "method": "POST",
+      "url": "http://localhost:8080/api/orders/create",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "examples": [
+        {
+          "userId": "user001",
+          "amount": 250000
+        },
+        {
+          "userId": "user002",
+          "amount": 750000
+        },
+        {
+          "userId": "user003",
+          "amount": 1000000
+        }
+      ],
+      "description": "Gửi nhiều request để tạo nhiều đơn hàng cùng lúc"
+    },
+    "3. Thanh toán đơn hàng": {
+      "method": "POST",
+      "url": "http://localhost:8080/api/orders/{orderId}/pay",
+      "description": "Thanh toán đơn hàng. Thay {orderId} bằng mã đơn hàng thực tế (ví dụ: ORD-A1B2C3D4)",
+      "example": "http://localhost:8080/api/orders/ORD-A1B2C3D4/pay"
+    },
+    "4. Hủy đơn hàng thủ công": {
+      "method": "POST",
+      "url": "http://localhost:8080/api/orders/{orderId}/cancel",
+      "description": "Hủy đơn hàng thủ công. Thay {orderId} bằng mã đơn hàng thực tế",
+      "example": "http://localhost:8080/api/orders/ORD-A1B2C3D4/cancel"
+    },
+    "5. Lấy thông tin đơn hàng": {
+      "method": "GET",
+      "url": "http://localhost:8080/api/orders/{orderId}",
+      "description": "Xem chi tiết một đơn hàng",
+      "example": "http://localhost:8080/api/orders/ORD-A1B2C3D4"
+    },
+    "6. Lấy tất cả đơn hàng": {
+      "method": "GET",
+      "url": "http://localhost:8080/api/orders",
+      "description": "Xem danh sách tất cả đơn hàng"
+    }
+  },
+  "test_scenarios": {
+    "Scenario 1 - Tự động hủy đơn": {
+      "steps": [
+        "1. Tạo đơn hàng mới qua API create",
+        "2. Lưu lại orderId từ response",
+        "3. Đợi 15 phút (hoặc thời gian TTL đã cấu hình)",
+        "4. Kiểm tra log console - sẽ thấy message 'Đơn hàng bị HỦY'",
+        "5. Gọi API get order để xác nhận status = CANCELLED"
+      ],
+      "note": "Nếu muốn test nhanh, có thể giảm TTL xuống 30 giây trong OrderCancellationConfig.java"
+    },
+    "Scenario 2 - Thanh toán thành công": {
+      "steps": [
+        "1. Tạo đơn hàng mới qua API create",
+        "2. Lưu lại orderId từ response",
+        "3. Gọi API pay trong vòng 15 phút",
+        "4. Kiểm tra log console - sẽ thấy 'Đơn hàng đã THANH TOÁN'",
+        "5. Đợi thêm 15 phút - đơn hàng sẽ KHÔNG bị hủy",
+        "6. Gọi API get order để xác nhận status = PAID"
+      ]
+    },
+    "Scenario 3 - Hủy thủ công": {
+      "steps": [
+        "1. Tạo đơn hàng mới qua API create",
+        "2. Lưu lại orderId từ response",
+        "3. Gọi API cancel ngay lập tức",
+        "4. Kiểm tra log console - sẽ thấy 'Đơn hàng bị HỦY'",
+        "5. Gọi API get order để xác nhận status = CANCELLED"
+      ]
+    }
+  },
+  "curl_commands": {
+    "create_order": "curl -X POST http://localhost:8080/api/orders/create -H \"Content-Type: application/json\" -d \"{\\\"userId\\\":\\\"user123\\\",\\\"amount\\\":500000}\"",
+    "pay_order": "curl -X POST http://localhost:8080/api/orders/ORD-XXXXX/pay",
+    "cancel_order": "curl -X POST http://localhost:8080/api/orders/ORD-XXXXX/cancel",
+    "get_order": "curl -X GET http://localhost:8080/api/orders/ORD-XXXXX",
+    "get_all_orders": "curl -X GET http://localhost:8080/api/orders"
+  },
+  "powershell_commands": {
+    "create_order": "Invoke-RestMethod -Method Post -Uri http://localhost:8080/api/orders/create -ContentType 'application/json' -Body '{\"userId\":\"user123\",\"amount\":500000}'",
+    "pay_order": "Invoke-RestMethod -Method Post -Uri http://localhost:8080/api/orders/ORD-XXXXX/pay",
+    "cancel_order": "Invoke-RestMethod -Method Post -Uri http://localhost:8080/api/orders/ORD-XXXXX/cancel",
+    "get_order": "Invoke-RestMethod -Method Get -Uri http://localhost:8080/api/orders/ORD-XXXXX",
+    "get_all_orders": "Invoke-RestMethod -Method Get -Uri http://localhost:8080/api/orders"
+  }
+}
