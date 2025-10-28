@@ -1,515 +1,316 @@
-// API Base URL
-const API_BASE_URL = '/api/orders';
+// API URL
+const API_URL = '/api/orders';
 
-// Global state
-let orders = {};
-let timers = {};
-let autoRefreshInterval = null;
+// State
+let orders = new Map();
+let timers = new Map();
 
-// Initialize app
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('🚀 App initialized');
+// Init
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('🚀 App started');
     
-    // Setup event listeners
-    setupEventListeners();
-    
-    // Load initial data
-    refreshOrders();
-    
-    // Auto refresh every 10 seconds (giảm tần suất để mượt hơn)
-    autoRefreshInterval = setInterval(refreshOrders, 10000);
-    
-    // Get TTL info
-    getTTLInfo();
-});
-
-// Setup event listeners
-function setupEventListeners() {
-    // Create order form
-    const form = document.getElementById('createOrderForm');
-    form.addEventListener('submit', function(e) {
+    document.getElementById('createOrderForm').addEventListener('submit', (e) => {
         e.preventDefault();
         createOrder();
     });
+    
+    loadOrders();
+    setInterval(loadOrders, 10000);
+});
+
+// Load orders
+async function loadOrders() {
+    try {
+        const res = await fetch(API_URL);
+        const data = await res.json();
+        
+        if (data.success && data.orders) {
+            updateUI(data.orders);
+        }
+    } catch (err) {
+        console.error('Load error:', err);
+    }
 }
 
-// Get TTL info from server
-async function getTTLInfo() {
-    // Default to 15 minutes
-    document.getElementById('ttl-info').textContent = '15 phút';
+// Update UI
+function updateUI(newOrders) {
+    const container = document.getElementById('orders-container');
+    
+    // Convert to Map
+    const newMap = new Map(newOrders.map(o => [o.orderId, o]));
+    
+    // Empty state
+    if (newMap.size === 0) {
+        container.innerHTML = '<div class="empty">Chưa có đơn hàng</div>';
+        orders.clear();
+        timers.forEach(t => clearInterval(t));
+        timers.clear();
+        updateStats();
+        return;
+    }
+    
+    // Remove empty
+    const empty = container.querySelector('.empty');
+    if (empty) empty.remove();
+    
+    // Get existing cards
+    const existing = new Map();
+    container.querySelectorAll('.order-card').forEach(card => {
+        const id = card.dataset.id;
+        if (id) existing.set(id, { card, status: card.dataset.status });
+    });
+    
+    // Sort by date
+    const sorted = Array.from(newMap.values()).sort((a, b) => 
+        new Date(b.createdAt) - new Date(a.createdAt)
+    );
+    
+    // Update cards
+    sorted.forEach(order => {
+        const ex = existing.get(order.orderId);
+        
+        if (ex && ex.status === order.status) {
+            // Same status - skip
+            return;
+        }
+        
+        if (ex) {
+            // Status changed - replace
+            const newCard = createCard(order);
+            ex.card.replaceWith(newCard);
+            
+            if (order.status !== 'PENDING') {
+                stopTimer(order.orderId);
+            }
+        } else {
+            // New card
+            container.appendChild(createCard(order));
+            
+            if (order.status === 'PENDING') {
+                startTimer(order.orderId, order.createdAt);
+            }
+        }
+    });
+    
+    // Remove old cards
+    existing.forEach((ex, id) => {
+        if (!newMap.has(id)) {
+            ex.card.remove();
+            stopTimer(id);
+        }
+    });
+    
+    orders = newMap;
+    updateStats();
 }
 
-// Create order
+// Create card
+function createCard(order) {
+    const card = document.createElement('div');
+    card.className = `order-card ${order.status.toLowerCase()}`;
+    card.dataset.id = order.orderId;
+    card.dataset.status = order.status;
+    
+    const statusInfo = {
+        PENDING: { icon: '⏳', text: 'Chờ thanh toán', class: 'pending' },
+        PAID: { icon: '✅', text: 'Đã thanh toán', class: 'paid' },
+        CANCELLED: { icon: '❌', text: 'Đã hủy', class: 'cancelled' }
+    };
+    
+    const info = statusInfo[order.status] || statusInfo.PENDING;
+    
+    card.innerHTML = `
+        <div class="card-header">
+            <div class="order-id">${order.orderId}</div>
+            <div class="status ${info.class}">${info.icon} ${info.text}</div>
+        </div>
+        
+        <div class="card-body">
+            <div class="info-row">
+                <span>👤 Khách hàng:</span>
+                <strong>${order.userId}</strong>
+            </div>
+            <div class="info-row">
+                <span>💰 Số tiền:</span>
+                <strong>${formatMoney(order.amount)}</strong>
+            </div>
+            <div class="info-row">
+                <span>🕐 Tạo lúc:</span>
+                <span>${formatTime(order.createdAt)}</span>
+            </div>
+            ${order.cancelledAt ? `
+            <div class="info-row">
+                <span>🚫 Hủy lúc:</span>
+                <span>${formatTime(order.cancelledAt)}</span>
+            </div>
+            ` : ''}
+            ${order.cancelReason ? `
+            <div class="info-row">
+                <span>📝 Lý do:</span>
+                <span>${order.cancelReason}</span>
+            </div>
+            ` : ''}
+        </div>
+        
+        ${order.status === 'PENDING' ? `
+            <div class="timer" id="timer-${order.orderId}">
+                <span>⏱️ Còn lại:</span>
+                <strong id="timer-value-${order.orderId}">--:--</strong>
+            </div>
+            
+            <div class="card-actions">
+                <button onclick="pay('${order.orderId}')" class="btn btn-success">
+                    💳 Thanh toán
+                </button>
+                <button onclick="cancel('${order.orderId}')" class="btn btn-danger">
+                    ❌ Hủy đơn
+                </button>
+            </div>
+        ` : ''}
+    `;
+    
+    return card;
+}
+
+// Timer
+function startTimer(id, createdAt) {
+    if (timers.has(id)) return;
+    
+    const TTL = 15 * 60 * 1000;
+    const created = new Date(createdAt).getTime();
+    
+    const update = () => {
+        const now = Date.now();
+        const remaining = TTL - (now - created);
+        
+        const value = document.getElementById(`timer-value-${id}`);
+        if (!value) {
+            stopTimer(id);
+            return;
+        }
+        
+        if (remaining <= 0) {
+            value.textContent = 'HẾT HẠN';
+            value.style.color = '#ef4444';
+            stopTimer(id);
+            setTimeout(loadOrders, 2000);
+            return;
+        }
+        
+        const mins = Math.floor(remaining / 60000);
+        const secs = Math.floor((remaining % 60000) / 1000);
+        value.textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+        
+        if (remaining < 2 * 60 * 1000) {
+            value.style.color = '#ef4444';
+        }
+    };
+    
+    update();
+    timers.set(id, setInterval(update, 1000));
+}
+
+function stopTimer(id) {
+    if (timers.has(id)) {
+        clearInterval(timers.get(id));
+        timers.delete(id);
+    }
+}
+
+// Actions
 async function createOrder() {
     const userId = document.getElementById('userId').value.trim();
     const amount = parseFloat(document.getElementById('amount').value);
     
     if (!userId || !amount || amount < 1000) {
-        showToast('error', 'Lỗi', 'Vui lòng nhập đầy đủ thông tin hợp lệ');
+        alert('Vui lòng nhập đầy đủ thông tin!');
         return;
     }
     
-    showLoading(true);
-    
     try {
-        const response = await fetch(`${API_BASE_URL}/create`, {
+        const res = await fetch(`${API_URL}/create`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ userId, amount })
         });
         
-        const data = await response.json();
+        const data = await res.json();
         
         if (data.success) {
-            showToast('success', 'Thành công', `Đã tạo đơn hàng ${data.orderId}`);
+            toast('✅ Đã tạo đơn hàng ' + data.orderId);
             document.getElementById('createOrderForm').reset();
-            await refreshOrders();
+            loadOrders();
         } else {
-            showToast('error', 'Lỗi', data.message || 'Không thể tạo đơn hàng');
+            alert('Lỗi: ' + data.message);
         }
-    } catch (error) {
-        console.error('Error creating order:', error);
-        showToast('error', 'Lỗi', 'Không thể kết nối đến server');
-    } finally {
-        showLoading(false);
+    } catch (err) {
+        alert('Lỗi kết nối: ' + err.message);
     }
 }
 
-// Create quick order
-async function createQuickOrder(userId, amount) {
-    document.getElementById('userId').value = userId;
-    document.getElementById('amount').value = amount;
-    await createOrder();
-}
-
-// Refresh orders
-async function refreshOrders() {
+async function pay(id) {
+    if (!confirm('Xác nhận thanh toán?')) return;
+    
     try {
-        const response = await fetch(`${API_BASE_URL}`);
-        const data = await response.json();
+        const res = await fetch(`${API_URL}/${id}/pay`, { method: 'POST' });
+        const data = await res.json();
         
         if (data.success) {
-            orders = {};
-            if (data.orders && Array.isArray(data.orders)) {
-                data.orders.forEach(order => {
-                    orders[order.orderId] = order;
-                });
-            }
-            renderOrders();
-            updateStatistics();
-        }
-    } catch (error) {
-        console.error('Error fetching orders:', error);
-    }
-}
-
-// Render orders (với DOM diffing để tránh nháy màn hình)
-function renderOrders() {
-    const container = document.getElementById('orders-container');
-    const orderList = Object.values(orders);
-    
-    if (orderList.length === 0) {
-        container.innerHTML = `
-            <div class="empty-state">
-                <i class="fas fa-inbox"></i>
-                <p>Chưa có đơn hàng nào</p>
-                <small>Tạo đơn hàng mới để bắt đầu</small>
-            </div>
-        `;
-        return;
-    }
-    
-    // Sort by created date (newest first)
-    orderList.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-    
-    // Get existing order cards
-    const existingCards = Array.from(container.querySelectorAll('.order-card'));
-    const existingOrderIds = existingCards.map(card => {
-        const idElement = card.querySelector('.order-id');
-        return idElement ? idElement.textContent.trim() : null;
-    });
-    
-    // Update or add cards
-    orderList.forEach((order, index) => {
-        const existingIndex = existingOrderIds.indexOf(order.orderId);
-        
-        if (existingIndex !== -1) {
-            // Card exists - check if status changed
-            const existingCard = existingCards[existingIndex];
-            const existingStatus = existingCard.querySelector('.order-status');
-            const currentStatus = getStatusText(order.status);
-            
-            if (existingStatus && !existingStatus.textContent.includes(currentStatus)) {
-                // Status changed - update the card
-                const newCard = createOrderElement(order);
-                existingCard.replaceWith(newCard);
-            }
-            // Don't update if status is same (giữ timer chạy mượt)
+            toast('✅ Đã thanh toán đơn ' + id);
+            stopTimer(id);
+            loadOrders();
         } else {
-            // New card - add it
-            const newCard = createOrderElement(order);
-            newCard.classList.add('new-card'); // Animation cho card mới
-            if (index < existingCards.length) {
-                container.insertBefore(newCard, existingCards[index]);
-            } else {
-                container.appendChild(newCard);
-            }
-            // Remove animation class after animation completes
-            setTimeout(() => newCard.classList.remove('new-card'), 300);
+            alert('Lỗi: ' + data.message);
         }
-    });
-    
-    // Remove cards that no longer exist
-    existingCards.forEach(card => {
-        const idElement = card.querySelector('.order-id');
-        const orderId = idElement ? idElement.textContent.trim() : null;
-        if (!orderList.find(o => o.orderId === orderId)) {
-            card.remove();
-        }
-    });
-    
-    // Start timers for pending orders (chỉ khởi tạo nếu chưa có)
-    orderList.forEach(order => {
-        if (order.status === 'PENDING' && !timers[order.orderId]) {
-            startTimer(order.orderId, order.createdAt);
-        }
-    });
+    } catch (err) {
+        alert('Lỗi: ' + err.message);
+    }
 }
 
-// Create order card element (thay vì HTML string)
-function createOrderElement(order) {
+async function cancel(id) {
+    if (!confirm('Xác nhận hủy đơn?')) return;
+    
+    try {
+        const res = await fetch(`${API_URL}/${id}/cancel`, { method: 'POST' });
+        const data = await res.json();
+        
+        if (data.success) {
+            toast('❌ Đã hủy đơn ' + id);
+            stopTimer(id);
+            loadOrders();
+        } else {
+            alert('Lỗi: ' + data.message);
+        }
+    } catch (err) {
+        alert('Lỗi: ' + err.message);
+    }
+}
+
+// Stats
+function updateStats() {
+    const arr = Array.from(orders.values());
+    document.getElementById('stat-pending').textContent = arr.filter(o => o.status === 'PENDING').length;
+    document.getElementById('stat-paid').textContent = arr.filter(o => o.status === 'PAID').length;
+    document.getElementById('stat-cancelled').textContent = arr.filter(o => o.status === 'CANCELLED').length;
+}
+
+// Utils
+function formatMoney(amount) {
+    return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
+}
+
+function formatTime(date) {
+    return new Date(date).toLocaleString('vi-VN');
+}
+
+function toast(msg) {
     const div = document.createElement('div');
-    div.className = `order-card ${order.status.toLowerCase()}`;
-    div.innerHTML = createOrderCard(order);
-    return div;
-}
-
-// Create order card HTML
-function createOrderCard(order) {
-    const statusClass = order.status.toLowerCase();
-    const statusIcon = getStatusIcon(order.status);
-    const statusText = getStatusText(order.status);
-    
-    return `
-        <div class="order-card ${statusClass}">
-            <div class="order-header">
-                <div class="order-id">
-                    <i class="fas fa-hashtag"></i> ${order.orderId}
-                </div>
-                <span class="order-status ${statusClass}">
-                    ${statusIcon} ${statusText}
-                </span>
-            </div>
-            
-            <div class="order-info">
-                <div class="info-item">
-                    <i class="fas fa-user"></i>
-                    <span class="info-label">Khách hàng:</span>
-                    <span class="info-value">${order.userId}</span>
-                </div>
-                <div class="info-item">
-                    <i class="fas fa-money-bill-wave"></i>
-                    <span class="info-label">Số tiền:</span>
-                    <span class="info-value">${formatCurrency(order.amount)}</span>
-                </div>
-                <div class="info-item">
-                    <i class="fas fa-clock"></i>
-                    <span class="info-label">Tạo lúc:</span>
-                    <span class="info-value">${formatDateTime(order.createdAt)}</span>
-                </div>
-                ${order.cancelledAt ? `
-                <div class="info-item">
-                    <i class="fas fa-times-circle"></i>
-                    <span class="info-label">Hủy lúc:</span>
-                    <span class="info-value">${formatDateTime(order.cancelledAt)}</span>
-                </div>
-                ` : ''}
-            </div>
-            
-            ${order.status === 'PENDING' ? `
-                <div class="order-timer" id="timer-${order.orderId}">
-                    <div class="timer-icon">
-                        <i class="fas fa-hourglass-half"></i>
-                    </div>
-                    <div class="timer-content">
-                        <div class="timer-label">Thời gian còn lại</div>
-                        <div class="timer-value" id="timer-value-${order.orderId}">--:--</div>
-                    </div>
-                </div>
-            ` : ''}
-            
-            ${order.cancelReason ? `
-                <div class="info-item" style="margin-bottom: 16px;">
-                    <i class="fas fa-info-circle"></i>
-                    <span class="info-label">Lý do:</span>
-                    <span class="info-value">${order.cancelReason}</span>
-                </div>
-            ` : ''}
-            
-            ${order.status === 'PENDING' ? `
-                <div class="order-actions">
-                    <button class="btn btn-success btn-sm" onclick="payOrder('${order.orderId}')">
-                        <i class="fas fa-credit-card"></i> Thanh toán
-                    </button>
-                    <button class="btn btn-danger btn-sm" onclick="cancelOrder('${order.orderId}')">
-                        <i class="fas fa-times"></i> Hủy đơn
-                    </button>
-                </div>
-            ` : ''}
-        </div>
-    `;
-}
-
-// Start countdown timer (improved - không restart nếu đã chạy)
-function startTimer(orderId, createdAt) {
-    // Nếu timer đã chạy, không tạo lại
-    if (timers[orderId]) {
-        return;
-    }
-    
-    const TTL_MS = 15 * 60 * 1000; // 15 minutes
-    const createdTime = new Date(createdAt).getTime();
-    
-    // Update immediately first
-    updateTimerDisplay(orderId, createdTime, TTL_MS);
-    
-    // Then update every second
-    timers[orderId] = setInterval(() => {
-        updateTimerDisplay(orderId, createdTime, TTL_MS);
-    }, 1000);
-}
-
-// Update timer display (helper function)
-function updateTimerDisplay(orderId, createdTime, TTL_MS) {
-    const now = Date.now();
-    const elapsed = now - createdTime;
-    const remaining = TTL_MS - elapsed;
-    
-    const timerElement = document.getElementById(`timer-${orderId}`);
-    const timerValueElement = document.getElementById(`timer-value-${orderId}`);
-    
-    if (!timerElement || !timerValueElement) {
-        if (timers[orderId]) {
-            clearInterval(timers[orderId]);
-            delete timers[orderId];
-        }
-        return;
-    }
-    
-    if (remaining <= 0) {
-        timerValueElement.textContent = 'HẾT HẠN';
-        timerElement.classList.add('timer-expired');
-        
-        if (timers[orderId]) {
-            clearInterval(timers[orderId]);
-            delete timers[orderId];
-        }
-        
-        // Refresh to get updated status (only once)
-        setTimeout(refreshOrders, 2000);
-        return;
-    }
-    
-    const minutes = Math.floor(remaining / 60000);
-    const seconds = Math.floor((remaining % 60000) / 1000);
-    timerValueElement.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-    
-    // Change color when less than 2 minutes
-    if (remaining < 2 * 60 * 1000) {
-        timerElement.classList.add('timer-expired');
-    } else {
-        timerElement.classList.remove('timer-expired');
-    }
-}
-
-// Pay order
-async function payOrder(orderId) {
-    if (!confirm(`Xác nhận thanh toán đơn hàng ${orderId}?`)) {
-        return;
-    }
-    
-    showLoading(true);
-    
-    try {
-        const response = await fetch(`${API_BASE_URL}/${orderId}/pay`, {
-            method: 'POST'
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            showToast('success', 'Thành công', `Đã thanh toán đơn hàng ${orderId}`);
-            
-            // Clear timer
-            if (timers[orderId]) {
-                clearInterval(timers[orderId]);
-                delete timers[orderId];
-            }
-            
-            await refreshOrders();
-        } else {
-            showToast('error', 'Lỗi', data.message || 'Không thể thanh toán');
-        }
-    } catch (error) {
-        console.error('Error paying order:', error);
-        showToast('error', 'Lỗi', 'Không thể kết nối đến server');
-    } finally {
-        showLoading(false);
-    }
-}
-
-// Cancel order
-async function cancelOrder(orderId) {
-    if (!confirm(`Xác nhận hủy đơn hàng ${orderId}?`)) {
-        return;
-    }
-    
-    showLoading(true);
-    
-    try {
-        const response = await fetch(`${API_BASE_URL}/${orderId}/cancel`, {
-            method: 'POST'
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            showToast('warning', 'Đã hủy', `Đơn hàng ${orderId} đã bị hủy`);
-            
-            // Clear timer
-            if (timers[orderId]) {
-                clearInterval(timers[orderId]);
-                delete timers[orderId];
-            }
-            
-            await refreshOrders();
-        } else {
-            showToast('error', 'Lỗi', data.message || 'Không thể hủy đơn hàng');
-        }
-    } catch (error) {
-        console.error('Error canceling order:', error);
-        showToast('error', 'Lỗi', 'Không thể kết nối đến server');
-    } finally {
-        showLoading(false);
-    }
-}
-
-// Clear all orders (for demo purposes)
-async function clearAllOrders() {
-    if (!confirm('Xác nhận xóa TẤT CẢ đơn hàng? (Chỉ dùng để demo)')) {
-        return;
-    }
-    
-    // Clear all timers
-    Object.keys(timers).forEach(orderId => {
-        clearInterval(timers[orderId]);
-    });
-    timers = {};
-    
-    orders = {};
-    renderOrders();
-    updateStatistics();
-    
-    showToast('info', 'Đã xóa', 'Đã xóa tất cả đơn hàng');
-}
-
-// Update statistics
-function updateStatistics() {
-    const orderList = Object.values(orders);
-    
-    const pendingCount = orderList.filter(o => o.status === 'PENDING').length;
-    const paidCount = orderList.filter(o => o.status === 'PAID').length;
-    const cancelledCount = orderList.filter(o => o.status === 'CANCELLED').length;
-    
-    document.getElementById('stat-pending').textContent = pendingCount;
-    document.getElementById('stat-paid').textContent = paidCount;
-    document.getElementById('stat-cancelled').textContent = cancelledCount;
-}
-
-// Helper functions
-function getStatusIcon(status) {
-    const icons = {
-        'PENDING': '<i class="fas fa-hourglass-half"></i>',
-        'PAID': '<i class="fas fa-check-circle"></i>',
-        'CANCELLED': '<i class="fas fa-times-circle"></i>'
-    };
-    return icons[status] || '';
-}
-
-function getStatusText(status) {
-    const texts = {
-        'PENDING': 'Chờ thanh toán',
-        'PAID': 'Đã thanh toán',
-        'CANCELLED': 'Đã hủy'
-    };
-    return texts[status] || status;
-}
-
-function formatCurrency(amount) {
-    return new Intl.NumberFormat('vi-VN', {
-        style: 'currency',
-        currency: 'VND'
-    }).format(amount);
-}
-
-function formatDateTime(dateStr) {
-    const date = new Date(dateStr);
-    return date.toLocaleString('vi-VN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-    });
-}
-
-// Show toast notification
-function showToast(type, title, message) {
-    const container = document.getElementById('toast-container');
-    const toast = document.createElement('div');
-    toast.className = `toast ${type}`;
-    
-    const icon = {
-        'success': '<i class="fas fa-check-circle"></i>',
-        'error': '<i class="fas fa-exclamation-circle"></i>',
-        'warning': '<i class="fas fa-exclamation-triangle"></i>',
-        'info': '<i class="fas fa-info-circle"></i>'
-    }[type] || '';
-    
-    toast.innerHTML = `
-        <div class="toast-icon">${icon}</div>
-        <div class="toast-content">
-            <div class="toast-title">${title}</div>
-            <div class="toast-message">${message}</div>
-        </div>
-    `;
-    
-    container.appendChild(toast);
-    
-    // Auto remove after 5 seconds
+    div.className = 'toast';
+    div.textContent = msg;
+    document.body.appendChild(div);
+    setTimeout(() => div.classList.add('show'), 10);
     setTimeout(() => {
-        toast.style.animation = 'toastSlideIn 0.3s ease-out reverse';
-        setTimeout(() => toast.remove(), 300);
-    }, 5000);
+        div.classList.remove('show');
+        setTimeout(() => div.remove(), 300);
+    }, 3000);
 }
-
-// Show/hide loading overlay
-function showLoading(show) {
-    const overlay = document.getElementById('loading-overlay');
-    overlay.style.display = show ? 'flex' : 'none';
-}
-
-// Cleanup on page unload
-window.addEventListener('beforeunload', function() {
-    // Clear all intervals
-    if (autoRefreshInterval) {
-        clearInterval(autoRefreshInterval);
-    }
-    
-    Object.keys(timers).forEach(orderId => {
-        clearInterval(timers[orderId]);
-    });
-});

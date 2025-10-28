@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🐰 RabbitMQ - Tự động hủy đơn hàng</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <div class="logo">
+                    <i class="fas fa-shopping-cart"></i>
+                    <h1>Hệ thống tự động hủy đơn hàng</h1>
+                </div>
+                <div class="header-info">
+                    <span class="badge badge-info">
+                        <i class="fas fa-clock"></i> TTL: <span id="ttl-info">15 phút</span>
+                    </span>
+                    <span class="badge badge-success" id="status-indicator">
+                        <i class="fas fa-circle pulse"></i> Online
+                    </span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Left Panel - Create Order -->
+            <div class="panel create-order-panel">
+                <div class="panel-header">
+                    <h2><i class="fas fa-plus-circle"></i> Tạo đơn hàng mới</h2>
+                    <p class="panel-desc">Đơn hàng sẽ tự động hủy sau 15 phút nếu không thanh toán</p>
+                </div>
+                <div class="panel-body">
+                    <form id="createOrderForm">
+                        <div class="form-group">
+                            <label for="userId">
+                                <i class="fas fa-user"></i> Mã khách hàng
+                            </label>
+                            <input type="text" id="userId" name="userId" placeholder="Ví dụ: user123" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="amount">
+                                <i class="fas fa-money-bill-wave"></i> Số tiền (VNĐ)
+                            </label>
+                            <input type="number" id="amount" name="amount" placeholder="Ví dụ: 500000" min="1000" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-block">
+                            <i class="fas fa-shopping-bag"></i> Tạo đơn hàng
+                        </button>
+                    </form>
+
+                    <!-- Quick Actions -->
+                    <div class="quick-actions">
+                        <h3><i class="fas fa-bolt"></i> Tạo nhanh</h3>
+                        <div class="quick-btns">
+                            <button class="btn btn-sm btn-outline" onclick="createQuickOrder('user001', 250000)">
+                                <i class="fas fa-shopping-basket"></i> 250K
+                            </button>
+                            <button class="btn btn-sm btn-outline" onclick="createQuickOrder('user002', 500000)">
+                                <i class="fas fa-shopping-basket"></i> 500K
+                            </button>
+                            <button class="btn btn-sm btn-outline" onclick="createQuickOrder('user003', 1000000)">
+                                <i class="fas fa-shopping-basket"></i> 1M
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Statistics -->
+                    <div class="stats-grid">
+                        <div class="stat-card stat-pending">
+                            <div class="stat-icon"><i class="fas fa-hourglass-half"></i></div>
+                            <div class="stat-info">
+                                <div class="stat-value" id="stat-pending">0</div>
+                                <div class="stat-label">Đang chờ</div>
+                            </div>
+                        </div>
+                        <div class="stat-card stat-paid">
+                            <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
+                            <div class="stat-info">
+                                <div class="stat-value" id="stat-paid">0</div>
+                                <div class="stat-label">Đã thanh toán</div>
+                            </div>
+                        </div>
+                        <div class="stat-card stat-cancelled">
+                            <div class="stat-icon"><i class="fas fa-times-circle"></i></div>
+                            <div class="stat-info">
+                                <div class="stat-value" id="stat-cancelled">0</div>
+                                <div class="stat-label">Đã hủy</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panel - Orders List -->
+            <div class="panel orders-panel">
+                <div class="panel-header">
+                    <h2><i class="fas fa-list"></i> Danh sách đơn hàng</h2>
+                    <div class="panel-actions">
+                        <button class="btn btn-sm btn-outline" onclick="refreshOrders()">
+                            <i class="fas fa-sync-alt"></i> Làm mới
+                        </button>
+                        <button class="btn btn-sm btn-danger" onclick="clearAllOrders()">
+                            <i class="fas fa-trash"></i> Xóa tất cả
+                        </button>
+                    </div>
+                </div>
+                <div class="panel-body">
+                    <div id="orders-container" class="orders-container">
+                        <div class="empty-state">
+                            <i class="fas fa-inbox"></i>
+                            <p>Chưa có đơn hàng nào</p>
+                            <small>Tạo đơn hàng mới để bắt đầu</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Demo Info Panel -->
+        <div class="demo-info">
+            <h3><i class="fas fa-info-circle"></i> Hướng dẫn demo</h3>
+            <div class="demo-steps">
+                <div class="demo-step">
+                    <span class="step-number">1</span>
+                    <div class="step-content">
+                        <strong>Tạo đơn hàng</strong>
+                        <p>Nhập thông tin và tạo đơn hàng mới</p>
+                    </div>
+                </div>
+                <div class="demo-step">
+                    <span class="step-number">2</span>
+                    <div class="step-content">
+                        <strong>Thanh toán hoặc Hủy</strong>
+                        <p>Click nút "Thanh toán" để xác nhận hoặc "Hủy" để hủy đơn</p>
+                    </div>
+                </div>
+                <div class="demo-step">
+                    <span class="step-number">3</span>
+                    <div class="step-content">
+                        <strong>Tự động hủy</strong>
+                        <p>Nếu không làm gì, đơn hàng sẽ tự động hủy sau 15 phút</p>
+                    </div>
+                </div>
+            </div>
+            <div class="demo-links">
+                <a href="http://localhost:15672" target="_blank" class="demo-link">
+                    <i class="fas fa-external-link-alt"></i> RabbitMQ Console
+                </a>
+                <a href="/api/orders" target="_blank" class="demo-link">
+                    <i class="fas fa-code"></i> API Endpoint
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toast-container"></div>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="loading-overlay" style="display: none;">
+        <div class="spinner"></div>
+    </div>
+
+    <script src="js/app.js"></script>
+</body>
+</html>
