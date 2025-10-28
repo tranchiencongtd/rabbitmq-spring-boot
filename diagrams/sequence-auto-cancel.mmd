@@ -1,0 +1,43 @@
+```mermaid
+sequenceDiagram
+    participant C as Khách hàng
+    participant API as REST API
+    participant P as Producer
+    participant Q as RabbitMQ
+    participant CON as Consumer
+    participant DB as Database
+    
+    Note over C,DB: SCENARIO 2: TỰ ĐỘNG HỦY (TIMEOUT)
+    
+    C->>+API: POST /api/orders/create
+    API->>API: Tạo Order (status=PENDING)
+    API->>+P: sendOrderToPending()
+    P->>+Q: Gửi message vào pending queue (TTL=15min)
+    Note right of Q: TTL Timer bắt đầu: 15:00
+    Q-->>-P: ACK
+    P-->>-API: Success
+    API-->>-C: Response: orderId, TTL info
+    
+    Q->>+CON: Deliver message
+    CON->>DB: Lưu order
+    CON->>C: Gửi email nhắc nhở
+    CON-->>-Q: ACK
+    
+    Note over C,Q: ⏰ Timer đếm ngược: 15:00 → 00:00
+    Note over C,Q: Khách hàng KHÔNG thanh toán
+    
+    Note right of Q: TTL hết hạn: 00:00
+    Q->>Q: Message EXPIRE
+    Q->>Q: Chuyển sang Dead Letter Exchange
+    Note right of Q: DLX: order.dlx.exchange<br/>Routing: order.cancelled
+    
+    Q->>+CON: Deliver expired message (cancelled queue)
+    CON->>CON: Kiểm tra status != PAID
+    CON->>DB: Update status = CANCELLED
+    CON->>DB: Cập nhật cancelledAt, cancelReason
+    CON->>DB: Hoàn trả hàng về kho
+    CON->>C: Gửi email thông báo hủy
+    CON-->>-Q: ACK
+    
+    Note over C,DB: Kết quả: Đơn hàng = CANCELLED ❌<br/>Lý do: "Hủy tự động do quá thời gian thanh toán"
+```

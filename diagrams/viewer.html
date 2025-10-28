@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RabbitMQ Order Cancellation - Diagrams</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            background: white;
+            padding: 30px;
+            border-radius: 16px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            color: #4f46e5;
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #6b7280;
+            font-size: 16px;
+        }
+
+        .nav-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .tab-btn {
+            background: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            color: #4b5563;
+            transition: all 0.3s;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .tab-btn:hover {
+            background: #4f46e5;
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+        }
+
+        .tab-btn.active {
+            background: #4f46e5;
+            color: white;
+        }
+
+        .diagram-container {
+            display: none;
+            background: white;
+            padding: 40px;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .diagram-container.active {
+            display: block;
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .diagram-header {
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #e5e7eb;
+        }
+
+        .diagram-header h2 {
+            color: #111827;
+            font-size: 24px;
+            margin-bottom: 8px;
+        }
+
+        .diagram-header p {
+            color: #6b7280;
+            font-size: 14px;
+        }
+
+        .diagram-content {
+            display: flex;
+            justify-content: center;
+            padding: 20px;
+            background: #f9fafb;
+            border-radius: 12px;
+            overflow-x: auto;
+        }
+
+        .actions {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: #4f46e5;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #4338ca;
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: #e5e7eb;
+            color: #374151;
+        }
+
+        .btn-secondary:hover {
+            background: #d1d5db;
+        }
+
+        footer {
+            text-align: center;
+            color: white;
+            margin-top: 40px;
+            padding: 20px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 12px;
+        }
+
+        .mermaid {
+            background: white;
+        }
+
+        /* Loading animation */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #6b7280;
+        }
+
+        .spinner {
+            border: 3px solid #e5e7eb;
+            border-top: 3px solid #4f46e5;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🐰 RabbitMQ Order Cancellation System</h1>
+            <p class="subtitle">Architecture & Flow Diagrams - Interactive Viewer</p>
+        </header>
+
+        <div class="nav-tabs">
+            <button class="tab-btn active" onclick="showDiagram('order-flow')">
+                📊 Luồng xử lý
+            </button>
+            <button class="tab-btn" onclick="showDiagram('architecture')">
+                🏗️ Kiến trúc
+            </button>
+            <button class="tab-btn" onclick="showDiagram('sequence-payment')">
+                ✅ Thanh toán
+            </button>
+            <button class="tab-btn" onclick="showDiagram('sequence-cancel')">
+                ⏰ Tự động hủy
+            </button>
+            <button class="tab-btn" onclick="showDiagram('state')">
+                🔄 State Machine
+            </button>
+            <button class="tab-btn" onclick="showDiagram('timeline')">
+                ⏱️ Timeline
+            </button>
+            <button class="tab-btn" onclick="showDiagram('rabbitmq')">
+                🐰 RabbitMQ Config
+            </button>
+        </div>
+
+        <!-- Order Flow Diagram -->
+        <div id="order-flow" class="diagram-container active">
+            <div class="diagram-header">
+                <h2>📊 Luồng xử lý đơn hàng</h2>
+                <p>Flowchart tổng quan về toàn bộ luồng từ tạo đơn → thanh toán/hủy</p>
+            </div>
+            <div class="diagram-content">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Đang tải diagram...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Architecture Diagram -->
+        <div id="architecture" class="diagram-container">
+            <div class="diagram-header">
+                <h2>🏗️ Kiến trúc hệ thống</h2>
+                <p>Component diagram hiển thị các layer và components</p>
+            </div>
+            <div class="diagram-content">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Đang tải diagram...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sequence Payment -->
+        <div id="sequence-payment" class="diagram-container">
+            <div class="diagram-header">
+                <h2>✅ Sequence - Thanh toán thành công</h2>
+                <p>Sequence diagram cho scenario thanh toán thành công</p>
+            </div>
+            <div class="diagram-content">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Đang tải diagram...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sequence Cancel -->
+        <div id="sequence-cancel" class="diagram-container">
+            <div class="diagram-header">
+                <h2>⏰ Sequence - Tự động hủy</h2>
+                <p>Sequence diagram cho scenario tự động hủy sau timeout</p>
+            </div>
+            <div class="diagram-content">
+                <div class="loading">
+                    <div class="spinner"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- State Diagram -->
+        <div id="state" class="diagram-container">
+            <div class="diagram-header">
+                <h2>🔄 State Machine</h2>
+                <p>State diagram cho các trạng thái đơn hàng</p>
+            </div>
+            <div class="diagram-content">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Đang tải diagram...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Timeline -->
+        <div id="timeline" class="diagram-container">
+            <div class="diagram-header">
+                <h2>⏱️ Timeline vòng đời đơn hàng</h2>
+                <p>Timeline diagram theo thời gian thực</p>
+            </div>
+            <div class="diagram-content">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Đang tải diagram...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- RabbitMQ Config -->
+        <div id="rabbitmq" class="diagram-container">
+            <div class="diagram-header">
+                <h2>🐰 Cấu hình RabbitMQ</h2>
+                <p>Chi tiết exchanges, queues, bindings</p>
+            </div>
+            <div class="diagram-content">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Đang tải diagram...</p>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>🚀 RabbitMQ Order Cancellation System</p>
+            <p style="margin-top: 10px; font-size: 14px; opacity: 0.8;">
+                Diagrams created with Mermaid | View on 
+                <a href="https://github.com/tranchiencongtd/rabbitmq-spring-boot" 
+                   style="color: white; text-decoration: underline;">GitHub</a>
+            </p>
+        </footer>
+    </div>
+
+    <script>
+        // Initialize Mermaid
+        mermaid.initialize({ 
+            startOnLoad: false,
+            theme: 'default',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'basis'
+            }
+        });
+
+        // Diagram definitions (populated from .mmd files)
+        const diagrams = {
+            'order-flow': `flowchart TD
+    Start([Khách hàng tạo đơn hàng]) --> CreateOrder[API: POST /api/orders/create]
+    CreateOrder --> GenerateOrder[Tạo Order Object<br/>orderId = UUID<br/>status = PENDING]
+    GenerateOrder --> SendPending[Producer gửi message<br/>đến order.pending.queue]
+    SendPending --> QueuePending[(order.pending.queue<br/>TTL = 15 phút)]
+    
+    QueuePending --> ConsumerPending[Consumer nhận message<br/>handlePendingOrder]
+    ConsumerPending --> SaveDB[(Lưu vào Database)]
+    ConsumerPending --> SendEmail[Gửi email nhắc nhở<br/>thanh toán]
+    
+    QueuePending --> Decision{Khách hàng<br/>làm gì?}
+    
+    Decision -->|Thanh toán trong 15 phút| PayAPI[API: POST /orders/:id/pay]
+    PayAPI --> SendPaid[Producer gửi message<br/>đến order.paid.queue]
+    SendPaid --> QueuePaid[(order.paid.queue)]
+    QueuePaid --> ConsumerPaid[Consumer nhận message<br/>handlePaidOrder]
+    ConsumerPaid --> UpdatePaid[Cập nhật status = PAID]
+    UpdatePaid --> ProcessShipping[Xử lý đóng gói<br/>và giao hàng]
+    ProcessShipping --> EndPaid([Kết thúc - Đã thanh toán])
+    
+    Decision -->|Hủy thủ công| CancelAPI[API: POST /orders/:id/cancel]
+    CancelAPI --> SendCancelled[Producer gửi message<br/>đến order.cancelled.queue]
+    SendCancelled --> QueueCancelled[(order.cancelled.queue)]
+    
+    Decision -->|Không làm gì - Hết 15 phút| ExpireMessage[Message expire]
+    ExpireMessage --> DLX[Dead Letter Exchange<br/>order.dlx.exchange]
+    DLX --> RouteToCancelled[Route với key<br/>order.cancelled]
+    RouteToCancelled --> QueueCancelled
+    
+    QueueCancelled --> ConsumerCancelled[Consumer nhận message<br/>handleCancelledOrder]
+    ConsumerCancelled --> CheckStatus{Status<br/>đã PAID?}
+    CheckStatus -->|Có| IgnoreCancel[Bỏ qua hủy đơn]
+    IgnoreCancel --> EndIgnore([Kết thúc - Giữ PAID])
+    CheckStatus -->|Không| UpdateCancelled[Cập nhật status = CANCELLED]
+    UpdateCancelled --> RestoreStock[Hoàn trả hàng về kho]
+    RestoreStock --> NotifyCustomer[Gửi email thông báo hủy]
+    NotifyCustomer --> EndCancelled([Kết thúc - Đã hủy])
+    
+    style Start fill:#4f46e5,color:#fff
+    style EndPaid fill:#10b981,color:#fff
+    style EndCancelled fill:#ef4444,color:#fff
+    style EndIgnore fill:#10b981,color:#fff
+    style QueuePending fill:#fef3c7,stroke:#f59e0b,stroke-width:3px
+    style QueuePaid fill:#d1fae5,stroke:#10b981,stroke-width:3px
+    style QueueCancelled fill:#fee2e2,stroke:#ef4444,stroke-width:3px
+    style DLX fill:#fca5a5,stroke:#991b1b,stroke-width:3px
+    style Decision fill:#dbeafe,stroke:#3b82f6,stroke-width:3px`,
+
+            'architecture': `graph TB
+    subgraph "CLIENT LAYER"
+        Client[Client Application<br/>Web UI / Mobile App]
+    end
+    
+    subgraph "API LAYER"
+        Controller[OrderController<br/>REST API Endpoints]
+        Service[OrderService<br/>Business Logic]
+    end
+    
+    subgraph "MESSAGING LAYER"
+        Producer[OrderProducer<br/>Send Messages]
+        Consumer[OrderConsumer<br/>Receive Messages]
+    end
+    
+    subgraph "RABBITMQ BROKER"
+        Exchange[order.exchange<br/>Direct Exchange]
+        DLX[order.dlx.exchange<br/>Dead Letter Exchange]
+        
+        subgraph "QUEUES"
+            PendingQ[(order.pending.queue<br/>TTL: 15 min<br/>DLX: order.dlx.exchange)]
+            PaidQ[(order.paid.queue)]
+            CancelledQ[(order.cancelled.queue)]
+        end
+    end
+    
+    subgraph "DATA LAYER"
+        DB[(Database<br/>Order Storage)]
+    end
+    
+    subgraph "NOTIFICATION LAYER"
+        Email[Email Service<br/>Send Notifications]
+    end
+    
+    Client -->|HTTP Request| Controller
+    Controller --> Service
+    Service --> Producer
+    
+    Producer -->|order.pending| Exchange
+    Producer -->|order.paid| Exchange
+    Producer -->|order.cancelled| Exchange
+    
+    Exchange -->|routing: order.pending| PendingQ
+    Exchange -->|routing: order.paid| PaidQ
+    
+    PendingQ -->|Message Expire| DLX
+    DLX -->|routing: order.cancelled| CancelledQ
+    
+    PendingQ -->|Listen| Consumer
+    PaidQ -->|Listen| Consumer
+    CancelledQ -->|Listen| Consumer
+    
+    Consumer --> DB
+    Consumer --> Email
+    
+    style Client fill:#dbeafe,stroke:#3b82f6,stroke-width:2px
+    style Exchange fill:#fbbf24,stroke:#f59e0b,stroke-width:2px
+    style DLX fill:#ef4444,color:#fff,stroke:#991b1b,stroke-width:3px
+    style PendingQ fill:#fef3c7,stroke:#f59e0b,stroke-width:3px
+    style PaidQ fill:#d1fae5,stroke:#10b981,stroke-width:3px
+    style CancelledQ fill:#fee2e2,stroke:#ef4444,stroke-width:3px`,
+
+            'sequence-payment': `sequenceDiagram
+    participant C as Khách hàng
+    participant API as REST API
+    participant P as Producer
+    participant Q as RabbitMQ
+    participant CON as Consumer
+    participant DB as Database
+    
+    Note over C,DB: SCENARIO 1: THANH TOÁN THÀNH CÔNG
+    
+    C->>+API: POST /api/orders/create
+    API->>API: Tạo Order (status=PENDING)
+    API->>+P: sendOrderToPending()
+    P->>+Q: Gửi message vào pending queue (TTL=15min)
+    Q-->>-P: ACK
+    P-->>-API: Success
+    API-->>-C: Response: orderId, TTL info
+    
+    Q->>+CON: Deliver message
+    CON->>DB: Lưu order
+    CON->>C: Gửi email nhắc nhở
+    CON-->>-Q: ACK
+    
+    Note over C,DB: Khách hàng thanh toán trong 15 phút
+    
+    C->>+API: POST /api/orders/{id}/pay
+    API->>API: Kiểm tra status
+    API->>+P: sendOrderToPaid()
+    P->>+Q: Gửi message vào paid queue
+    Q-->>-P: ACK
+    P-->>-API: Success
+    API-->>-C: Response: Thanh toán thành công
+    
+    Q->>+CON: Deliver message (paid queue)
+    CON->>DB: Update status = PAID
+    CON->>C: Gửi email xác nhận
+    CON-->>-Q: ACK
+    
+    Note over Q: Message trong pending queue expire
+    Q->>+CON: Deliver expired message
+    CON->>CON: Kiểm tra status = PAID
+    CON->>CON: Bỏ qua hủy đơn
+    CON-->>-Q: ACK
+    
+    Note over C,DB: Kết quả: Đơn hàng = PAID ✅`,
+
+            'sequence-cancel': `sequenceDiagram
+    participant C as Khách hàng
+    participant API as REST API
+    participant P as Producer
+    participant Q as RabbitMQ
+    participant CON as Consumer
+    participant DB as Database
+    
+    Note over C,DB: SCENARIO 2: TỰ ĐỘNG HỦY (TIMEOUT)
+    
+    C->>+API: POST /api/orders/create
+    API->>API: Tạo Order (status=PENDING)
+    API->>+P: sendOrderToPending()
+    P->>+Q: Gửi message vào pending queue (TTL=15min)
+    Note right of Q: TTL Timer bắt đầu: 15:00
+    Q-->>-P: ACK
+    P-->>-API: Success
+    API-->>-C: Response: orderId, TTL info
+    
+    Q->>+CON: Deliver message
+    CON->>DB: Lưu order
+    CON->>C: Gửi email nhắc nhở
+    CON-->>-Q: ACK
+    
+    Note over C,Q: ⏰ Timer đếm ngược: 15:00 → 00:00
+    Note over C,Q: Khách hàng KHÔNG thanh toán
+    
+    Note right of Q: TTL hết hạn: 00:00
+    Q->>Q: Message EXPIRE
+    Q->>Q: Chuyển sang Dead Letter Exchange
+    Note right of Q: DLX: order.dlx.exchange<br/>Routing: order.cancelled
+    
+    Q->>+CON: Deliver expired message (cancelled queue)
+    CON->>CON: Kiểm tra status != PAID
+    CON->>DB: Update status = CANCELLED
+    CON->>DB: Cập nhật cancelledAt, cancelReason
+    CON->>DB: Hoàn trả hàng về kho
+    CON->>C: Gửi email thông báo hủy
+    CON-->>-Q: ACK
+    
+    Note over C,DB: Kết quả: Đơn hàng = CANCELLED ❌<br/>Lý do: "Hủy tự động do quá thời gian thanh toán"`,
+
+            'state': `stateDiagram-v2
+    [*] --> PENDING: Tạo đơn hàng mới
+    
+    PENDING --> PAID: Thanh toán thành công<br/>(POST /orders/:id/pay)
+    PENDING --> CANCELLED: Hủy thủ công<br/>(POST /orders/:id/cancel)
+    PENDING --> CANCELLED: Tự động hủy<br/>(TTL expire sau 15 phút)
+    
+    PAID --> [*]: Đơn hàng hoàn tất
+    CANCELLED --> [*]: Đơn hàng kết thúc
+    
+    note right of PENDING
+        Timer: 15 phút
+        Message trong: order.pending.queue
+        Actions: Chờ thanh toán
+    end note
+    
+    note right of PAID
+        Message trong: order.paid.queue
+        Actions: Đóng gói, giao hàng
+    end note
+    
+    note right of CANCELLED
+        Message trong: order.cancelled.queue
+        Actions: Hoàn trả kho, thông báo
+        Lý do: Manual / Auto timeout
+    end note`,
+
+            'timeline': `timeline
+    title Timeline: Vòng đời đơn hàng (15 phút)
+    
+    section T = 0 phút
+        Tạo đơn hàng : Khách hàng tạo đơn
+                     : Status = PENDING
+                     : Message vào pending queue
+                     : TTL timer bắt đầu
+    
+    section T = 0-15 phút
+        Chờ thanh toán : Email nhắc nhở gửi
+                       : Timer đếm ngược
+                       : Message trong queue
+    
+    section T = 5 phút (ví dụ)
+        Thanh toán thành công : Khách hàng thanh toán
+                               : Status = PAID
+                               : Message vào paid queue
+                               : Timer dừng
+    
+    section T = 15 phút
+        Message Expire : TTL hết hạn
+                       : Nếu chưa thanh toán
+                       : Message chuyển DLX
+    
+    section T = 15 phút + 1s
+        Tự động hủy : Consumer nhận expired message
+                    : Check status != PAID
+                    : Update status = CANCELLED
+                    : Hoàn trả kho
+                    : Gửi email thông báo`,
+
+            'rabbitmq': `graph LR
+    subgraph "RabbitMQ Configuration"
+        Exchange[order.exchange<br/>Type: Direct]
+        DLX[order.dlx.exchange<br/>Type: Direct<br/>⚠️ Dead Letter Exchange]
+        
+        PendingQ["order.pending.queue<br/>━━━━━━━━━━━━━━<br/>x-message-ttl: 900000 (15 min)<br/>x-dead-letter-exchange: order.dlx.exchange<br/>x-dead-letter-routing-key: order.cancelled"]
+        
+        PaidQ["order.paid.queue<br/>━━━━━━━━━━━━━━<br/>Durable: true"]
+        
+        CancelledQ["order.cancelled.queue<br/>━━━━━━━━━━━━━━<br/>Durable: true"]
+    end
+    
+    Exchange -->|"Binding<br/>routing-key: order.pending"| PendingQ
+    Exchange -->|"Binding<br/>routing-key: order.paid"| PaidQ
+    Exchange -->|"Binding<br/>routing-key: order.cancelled"| CancelledQ
+    
+    PendingQ -.->|"Message Expire<br/>After TTL"| DLX
+    DLX -->|"DLX Binding<br/>routing-key: order.cancelled"| CancelledQ
+    
+    style Exchange fill:#fbbf24,stroke:#f59e0b,stroke-width:2px
+    style DLX fill:#ef4444,color:#fff,stroke:#991b1b,stroke-width:3px
+    style PendingQ fill:#fef3c7,stroke:#f59e0b,stroke-width:3px
+    style PaidQ fill:#d1fae5,stroke:#10b981,stroke-width:3px
+    style CancelledQ fill:#fee2e2,stroke:#ef4444,stroke-width:3px`
+        };
+
+        // Show diagram function
+        function showDiagram(diagramId) {
+            // Hide all diagrams
+            document.querySelectorAll('.diagram-container').forEach(container => {
+                container.classList.remove('active');
+            });
+
+            // Remove active from all tabs
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            // Show selected diagram
+            document.getElementById(diagramId).classList.add('active');
+            
+            // Set active tab
+            event.target.classList.add('active');
+
+            // Render diagram if not already rendered
+            const container = document.getElementById(diagramId);
+            const content = container.querySelector('.diagram-content');
+            
+            if (content.querySelector('.loading')) {
+                renderDiagram(diagramId, content);
+            }
+        }
+
+        // Render diagram
+        async function renderDiagram(diagramId, container) {
+            try {
+                const diagramCode = diagrams[diagramId].trim();
+                
+                if (!diagramCode || diagramCode.includes('<!--')) {
+                    container.innerHTML = `
+                        <div style="text-align: center; padding: 40px; color: #6b7280;">
+                            <p>⚠️ Diagram chưa được load</p>
+                            <p style="font-size: 14px; margin-top: 10px;">
+                                Vui lòng copy code từ file .mmd tương ứng và paste vào diagrams object trong script
+                            </p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                const { svg } = await mermaid.render('mermaid-' + diagramId, diagramCode);
+                container.innerHTML = svg;
+            } catch (error) {
+                console.error('Error rendering diagram:', error);
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 40px; color: #ef4444;">
+                        <p>❌ Lỗi khi render diagram</p>
+                        <p style="font-size: 14px; margin-top: 10px;">${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        // Load first diagram on page load
+        window.addEventListener('load', () => {
+            const firstContainer = document.querySelector('.diagram-container.active .diagram-content');
+            renderDiagram('order-flow', firstContainer);
+        });
+
+        // Note: To use this file, you need to:
+        // 1. Copy content from each .mmd file
+        // 2. Paste into corresponding diagrams object property
+        // 3. Remove the ```mermaid and ``` markers
+        // 4. Save and open in browser
+    </script>
+</body>
+</html>

@@ -1,0 +1,28 @@
+```mermaid
+stateDiagram-v2
+    [*] --> PENDING: Tạo đơn hàng mới
+    
+    PENDING --> PAID: Thanh toán thành công<br/>(POST /orders/:id/pay)
+    PENDING --> CANCELLED: Hủy thủ công<br/>(POST /orders/:id/cancel)
+    PENDING --> CANCELLED: Tự động hủy<br/>(TTL expire sau 15 phút)
+    
+    PAID --> [*]: Đơn hàng hoàn tất
+    CANCELLED --> [*]: Đơn hàng kết thúc
+    
+    note right of PENDING
+        Timer: 15 phút
+        Message trong: order.pending.queue
+        Actions: Chờ thanh toán
+    end note
+    
+    note right of PAID
+        Message trong: order.paid.queue
+        Actions: Đóng gói, giao hàng
+    end note
+    
+    note right of CANCELLED
+        Message trong: order.cancelled.queue
+        Actions: Hoàn trả kho, thông báo
+        Lý do: Manual / Auto timeout
+    end note
+```

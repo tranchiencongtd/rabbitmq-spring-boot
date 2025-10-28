@@ -1,0 +1,33 @@
+```mermaid
+timeline
+    title Timeline: Vòng đời đơn hàng (15 phút)
+    
+    section T = 0 phút
+        Tạo đơn hàng : Khách hàng tạo đơn
+                     : Status = PENDING
+                     : Message vào pending queue
+                     : TTL timer bắt đầu
+    
+    section T = 0-15 phút
+        Chờ thanh toán : Email nhắc nhở gửi
+                       : Timer đếm ngược
+                       : Message trong queue
+    
+    section T = 5 phút (ví dụ)
+        Thanh toán thành công : Khách hàng thanh toán
+                               : Status = PAID
+                               : Message vào paid queue
+                               : Timer dừng
+    
+    section T = 15 phút
+        Message Expire : TTL hết hạn
+                       : Nếu chưa thanh toán
+                       : Message chuyển DLX
+    
+    section T = 15 phút + 1s
+        Tự động hủy : Consumer nhận expired message
+                    : Check status != PAID
+                    : Update status = CANCELLED
+                    : Hoàn trả kho
+                    : Gửi email thông báo
+```

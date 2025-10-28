@@ -1,0 +1,49 @@
+```mermaid
+flowchart TD
+    Start([Khách hàng tạo đơn hàng]) --> CreateOrder[API: POST /api/orders/create]
+    CreateOrder --> GenerateOrder[Tạo Order Object<br/>orderId = UUID<br/>status = PENDING]
+    GenerateOrder --> SendPending[Producer gửi message<br/>đến order.pending.queue]
+    SendPending --> QueuePending[(order.pending.queue<br/>TTL = 15 phút)]
+    
+    QueuePending --> ConsumerPending[Consumer nhận message<br/>handlePendingOrder]
+    ConsumerPending --> SaveDB[(Lưu vào Database)]
+    ConsumerPending --> SendEmail[Gửi email nhắc nhở<br/>thanh toán]
+    
+    QueuePending --> Decision{Khách hàng<br/>làm gì?}
+    
+    Decision -->|Thanh toán trong 15 phút| PayAPI[API: POST /orders/:id/pay]
+    PayAPI --> SendPaid[Producer gửi message<br/>đến order.paid.queue]
+    SendPaid --> QueuePaid[(order.paid.queue)]
+    QueuePaid --> ConsumerPaid[Consumer nhận message<br/>handlePaidOrder]
+    ConsumerPaid --> UpdatePaid[Cập nhật status = PAID]
+    UpdatePaid --> ProcessShipping[Xử lý đóng gói<br/>và giao hàng]
+    ProcessShipping --> EndPaid([Kết thúc - Đã thanh toán])
+    
+    Decision -->|Hủy thủ công| CancelAPI[API: POST /orders/:id/cancel]
+    CancelAPI --> SendCancelled[Producer gửi message<br/>đến order.cancelled.queue]
+    SendCancelled --> QueueCancelled[(order.cancelled.queue)]
+    
+    Decision -->|Không làm gì - Hết 15 phút| ExpireMessage[Message expire]
+    ExpireMessage --> DLX[Dead Letter Exchange<br/>order.dlx.exchange]
+    DLX --> RouteToCancelled[Route với key<br/>order.cancelled]
+    RouteToCancelled --> QueueCancelled
+    
+    QueueCancelled --> ConsumerCancelled[Consumer nhận message<br/>handleCancelledOrder]
+    ConsumerCancelled --> CheckStatus{Status<br/>đã PAID?}
+    CheckStatus -->|Có| IgnoreCancel[Bỏ qua hủy đơn]
+    IgnoreCancel --> EndIgnore([Kết thúc - Giữ PAID])
+    CheckStatus -->|Không| UpdateCancelled[Cập nhật status = CANCELLED]
+    UpdateCancelled --> RestoreStock[Hoàn trả hàng về kho]
+    RestoreStock --> NotifyCustomer[Gửi email thông báo hủy]
+    NotifyCustomer --> EndCancelled([Kết thúc - Đã hủy])
+    
+    style Start fill:#4f46e5,color:#fff
+    style EndPaid fill:#10b981,color:#fff
+    style EndCancelled fill:#ef4444,color:#fff
+    style EndIgnore fill:#10b981,color:#fff
+    style QueuePending fill:#fef3c7,stroke:#f59e0b,stroke-width:3px
+    style QueuePaid fill:#d1fae5,stroke:#10b981,stroke-width:3px
+    style QueueCancelled fill:#fee2e2,stroke:#ef4444,stroke-width:3px
+    style DLX fill:#fca5a5,stroke:#991b1b,stroke-width:3px
+    style Decision fill:#dbeafe,stroke:#3b82f6,stroke-width:3px
+```

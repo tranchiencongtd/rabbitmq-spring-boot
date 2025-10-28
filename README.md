@@ -4,6 +4,14 @@
 
 Ứng dụng Spring Boot demo việc sử dụng RabbitMQ để **tự động hủy đơn hàng** sau khoảng thời gian nhất định nếu khách hàng không thanh toán.
 
+## 🎨 Demo Web UI
+
+**Giao diện web đẹp mắt với real-time updates!**
+
+![Demo UI](https://img.shields.io/badge/Demo-Live-success?style=for-the-badge)
+
+Truy cập: **http://localhost:8080** sau khi chạy ứng dụng để xem giao diện demo đầy đủ tính năng.
+
 ### 🎯 Bài toán
 
 Trong thương mại điện tử, khi khách hàng đặt hàng nhưng không thanh toán, hàng bị giữ trong kho gây lãng phí. Cần có cơ chế **tự động hủy đơn hàng** sau một khoảng thời gian (ví dụ: 15 phút) để:
@@ -32,7 +40,21 @@ docker-compose up -d
 ./mvnw spring-boot:run
 ```
 
-### 3️⃣ Test API
+### 3️⃣ Mở trình duyệt
+
+**🎨 Giao diện Web Demo:**
+```
+http://localhost:8080
+```
+
+**🐰 RabbitMQ Management:**
+```
+http://localhost:15672
+Username: guest
+Password: guest
+```
+
+### 4️⃣ (Tùy chọn) Test API thủ công
 
 ```powershell
 # Chạy script test tự động
@@ -48,6 +70,8 @@ Invoke-RestMethod -Method Post -Uri http://localhost:8080/api/orders/create `
 
 | File | Mô tả |
 |------|-------|
+| **[WEB_UI_GUIDE.md](WEB_UI_GUIDE.md)** | 🎨 **Hướng dẫn sử dụng giao diện web demo** |
+| **[diagrams/README.md](diagrams/README.md)** | 📊 **7 Diagrams chuyên nghiệp (Mermaid format)** |
 | [QUICKSTART.md](QUICKSTART.md) | 🏃 Hướng dẫn chạy nhanh với các command cụ thể |
 | [README_ORDER_CANCELLATION.md](README_ORDER_CANCELLATION.md) | 📖 Tài liệu chi tiết về kiến trúc và API |
 | [FLOW_DIAGRAM.md](FLOW_DIAGRAM.md) | 🔄 Sơ đồ luồng xử lý chi tiết |
