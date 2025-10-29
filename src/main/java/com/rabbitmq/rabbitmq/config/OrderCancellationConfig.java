@@ -32,7 +32,8 @@ public class OrderCancellationConfig {
     
     // TTL (Time To Live) - 15 phút (900000 ms)
     // Có thể điều chỉnh theo yêu cầu: 5 phút = 300000, 10 phút = 600000
-    public static final int ORDER_TTL = 900000; // 15 phút
+    // Để TEST: 30 giây = 30000, 1 phút = 60000
+    public static final int ORDER_TTL = 900000; // 30 giây (ĐỂ TEST - Đổi lại 900000 cho production)
 
     /**
      * Message converter để chuyển đổi object thành JSON

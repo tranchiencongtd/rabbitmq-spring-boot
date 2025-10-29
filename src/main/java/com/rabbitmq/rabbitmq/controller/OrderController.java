@@ -42,8 +42,13 @@ public class OrderController {
         String orderId = "ORD-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
         Order order = new Order(orderId, userId, amount);
         
-        // Gửi vào queue pending
+        // ✅ LƯU order vào service NGAY (vì không có consumer pending nữa)
+        orderService.saveOrder(order);
+        System.out.println("💾 Đã lưu đơn hàng: " + orderId + " với status: " + order.getStatus());
+        
+        // Gửi vào queue pending (message sẽ nằm trong queue 15 phút)
         orderProducer.sendOrderToPending(order);
+        System.out.println("📤 Đã gửi message vào pending queue. Sẽ tự động hủy sau 15 phút nếu không thanh toán.");
         
         return ResponseEntity.ok(Map.of(
                 "success", true,

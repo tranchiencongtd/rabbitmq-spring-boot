@@ -4,6 +4,7 @@ const API_URL = '/api/orders';
 // State
 let orders = new Map();
 let timers = new Map();
+let refreshInterval = null;
 
 // Init
 document.addEventListener('DOMContentLoaded', () => {
@@ -15,7 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     loadOrders();
-    setInterval(loadOrders, 10000);
+    startAutoRefresh();
 });
 
 // Load orders
@@ -30,6 +31,31 @@ async function loadOrders() {
     } catch (err) {
         console.error('Load error:', err);
     }
+}
+
+// Auto refresh với tần suất thông minh
+function startAutoRefresh() {
+    if (refreshInterval) {
+        clearInterval(refreshInterval);
+    }
+    
+    // Check mỗi 5 giây nếu có pending orders, ngược lại 15 giây
+    const checkAndRefresh = () => {
+        const hasPending = Array.from(orders.values()).some(o => o.status === 'PENDING');
+        const interval = hasPending ? 5000 : 15000; // 5s hoặc 15s
+        
+        if (refreshInterval) {
+            clearInterval(refreshInterval);
+        }
+        refreshInterval = setInterval(loadOrders, interval);
+        console.log(`🔄 Auto-refresh: ${interval/1000}s (hasPending: ${hasPending})`);
+    };
+    
+    // Initial setup
+    checkAndRefresh();
+    
+    // Re-check interval sau mỗi lần load
+    setInterval(checkAndRefresh, 30000); // Check mỗi 30s
 }
 
 // Update UI
@@ -193,7 +219,13 @@ function startTimer(id, createdAt) {
             value.textContent = 'HẾT HẠN';
             value.style.color = '#ef4444';
             stopTimer(id);
-            setTimeout(loadOrders, 2000);
+            
+            // Refresh multiple times để đảm bảo lấy được status mới
+            setTimeout(() => {
+                loadOrders(); // Lần 1: Sau 2 giây
+                setTimeout(loadOrders, 2000); // Lần 2: Sau 4 giây
+                setTimeout(loadOrders, 5000); // Lần 3: Sau 7 giây
+            }, 2000);
             return;
         }
         
